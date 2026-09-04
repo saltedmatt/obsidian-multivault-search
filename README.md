@@ -8,27 +8,37 @@ short alias `obmvs`. Both do exactly the same; this README uses `obmvs`.
 
 ## Installation
 
-```bash
-pipx install obsidian-multivault-search
-# or
-uv tool install obsidian-multivault-search
-```
+> [!WARNING]
+> **Not on PyPI yet.** The package has not been published; a release to PyPI is
+> only planned. Commands such as `pipx install obsidian-multivault-search` will
+> therefore fail. Until then, install from a clone of this repository.
 
-Both install the two commands `obsidian-multivault-search` and `obmvs`.
-To try the tool without installing it:
+From a clone of this repository:
 
 ```bash
-uvx --from obsidian-multivault-search obmvs TERM
-```
-
-There are no dependencies, so plain `pip install obsidian-multivault-search`
-into a virtual environment works just as well. From a clone of this repository:
-
-```bash
+git clone https://github.com/saltedmatt/obsidian-multivault-search
+cd obsidian-multivault-search
 uv tool install .          # installs both commands
 # or, without installing anything:
 python -m obsidian_multivault_search TERM   # with src/ on PYTHONPATH
 ```
+
+There are no dependencies, so plain `pip install .` into a virtual environment
+works just as well.
+
+Once the package is published on PyPI, the following will work — **these
+commands do not work yet**:
+
+```bash
+pipx install obsidian-multivault-search
+# or
+uv tool install obsidian-multivault-search
+# or, to try the tool without installing it:
+uvx --from obsidian-multivault-search obmvs TERM
+```
+
+Every variant installs the two commands `obsidian-multivault-search` and
+`obmvs`.
 
 ## Project layout
 
