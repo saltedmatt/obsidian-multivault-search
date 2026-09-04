@@ -1,0 +1,30 @@
+services:
+  proxy:
+    image: docker.io/ubuntu/squid:latest
+    networks: [egress, uplink]
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+    restart: unless-stopped
+
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    userns_mode: keep-id
+    command: sleep infinity
+    networks: [egress]
+    volumes:
+      - ..:/workspace:cached
+      - claude-config:/home/vscode/.claude
+    depends_on: [proxy]
+
+networks:
+  egress:
+    internal: true
+  uplink: {}
+
+volumes:
+  claude-config: {}
+
+x-podman:
+  in_pod: false

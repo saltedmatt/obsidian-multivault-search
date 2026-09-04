@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "obsidian-multivault-search"
+dynamic = ["version"]
+description = "Command-line search for notes across multiple Obsidian vaults - stdlib only, no dependencies"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0 OR MIT"
+license-files = ["LICENSE-APACHE", "LICENSE-MIT"]
+authors = [{ name = "The obsidian-multivault-search contributors" }]
+keywords = [
+    "obsidian",
+    "obsidian-md",
+    "cli",
+    "search",
+    "markdown",
+    "notes",
+    "zettelkasten",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Text Processing :: Indexing",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+# TODO: replace OWNER with the GitHub account once the repository exists.
+[project.urls]
+Homepage = "https://github.com/OWNER/obsidian-multivault-search"
+Source = "https://github.com/OWNER/obsidian-multivault-search"
+Issues = "https://github.com/OWNER/obsidian-multivault-search/issues"
+
+# Both names invoke the same tool; PROG makes help and error messages follow
+# whichever one was typed.
+[project.scripts]
+obsidian-multivault-search = "obsidian_multivault_search:cli"
+obmvs = "obsidian_multivault_search:cli"
+
+[tool.hatch.version]
+path = "src/obsidian_multivault_search/_meta.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/obsidian_multivault_search"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/obsidian_multivault_search",
+    "pyproject.toml",
+    "README.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+]

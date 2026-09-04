@@ -1,0 +1,38 @@
+{
+  "name": "cc-dev",
+  "dockerComposeFile": "compose.yaml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "HTTP_PROXY": "http://proxy:3128",
+    "HTTPS_PROXY": "http://proxy:3128",
+    "NO_PROXY": "localhost,127.0.0.1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+    "UV_PYTHON_PREFERENCE": "only-managed",
+    "UV_PROJECT_ENVIRONMENT": "/home/vscode/.venv"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/.venv/bin/python"
+      }
+    }
+  },
+
+  "postCreateCommand": "[ -f pyproject.toml ] && uv sync || true"
+}
