@@ -72,3 +72,8 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --strict-config"
+
+[tool.ruff.lint.flake8-comprehensions]
+# Passing options as keywords reads better than quoting every key, so C408 is
+# limited to the empty `dict()`/`list()`/`tuple()` calls it is really about.
+allow-dict-calls-with-keyword-arguments = true

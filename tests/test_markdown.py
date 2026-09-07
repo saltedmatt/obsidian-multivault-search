@@ -18,12 +18,6 @@ from obsidian_multivault_search.markdown import clean_markdown
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        # Escapes are resolved first, so the unescaped characters that appear
-        # are not treated as formatting afterwards.
-        (r"\*not emphasis\*", "not emphasis"),
-        # The brackets survive as literal text: there is no link to unwrap.
-        (r"\[not a link\]", "[not a link]"),
-        (r"a \| b", "a b"),
         # Fences drop out, the code between them stays searchable.
         ("```python\ncode here\n```", "code here"),
         ("~~~\nfenced\n~~~", "fenced"),
@@ -75,23 +69,49 @@ def test_hash_without_space_is_not_a_heading() -> None:
     assert clean_markdown("#tag stays") == "#tag stays"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="known defect: _ESCAPE runs before _LINE_PREFIX, so an escaped "
-    "marker at the start of a line unescapes into a real marker and is "
-    "then stripped along with the escape",
-)
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
+        # Inline markers.
+        (r"\*not emphasis\*", "*not emphasis*"),
+        (r"\`not code\`", "`not code`"),
+        (r"\[not a link\]", "[not a link]"),
+        (r"\_leading underscore", "_leading underscore"),
+        (r"a \< b \> c", "a < b > c"),
+        # Line markers: these only get stripped at the start of a line, which
+        # is exactly where unescaping too early used to lose them.
         (r"\# not a heading", "# not a heading"),
         (r"\- not a bullet", "- not a bullet"),
         (r"\> not a quote", "> not a quote"),
+        (r"\--- not a rule", "--- not a rule"),
+        # A backslash can escape itself.
+        (r"a \\ b", "a \\ b"),
+        # Structure around an escape is still recognised.
+        (r"# Heading with \*stars\*", "Heading with *stars*"),
+        # An escaped bracket means there is no link to unwrap, so the target
+        # stays visible instead of being swallowed.
+        (r"\[not a link\](http://example.com)", "[not a link](http://example.com)"),
+        # Several escapes in one line keep their order.
+        (r"\#one \*two\* \#three", "#one *two* #three"),
     ],
 )
-def test_escaped_line_marker_keeps_its_character(raw: str, expected: str) -> None:
-    """An escaped marker is literal text and should survive as such."""
+def test_escaped_characters_stay_literal(raw: str, expected: str) -> None:
+    """An escaped character is text, not formatting: it has to survive every
+    substitution unchanged."""
     assert clean_markdown(raw) == expected
+
+
+def test_escaped_pipe_is_still_dropped() -> None:
+    """The one exception: "|" separates the contexts in the output, so it may
+    not reach it even when the note escaped it."""
+    assert clean_markdown(r"a \| b") == "a b"
+
+
+def test_nul_bytes_in_a_note_do_not_confuse_the_escape_handling() -> None:
+    """The internal marker is built from NUL bytes, which a note may contain
+    itself; an unknown marker is left alone rather than crashing."""
+    assert clean_markdown("a \x000\x00 b") == "a \x000\x00 b"
+    assert clean_markdown("\\# x \x009\x00") == "# x \x009\x00"
 
 
 def test_cleaning_is_stable_on_already_clean_text() -> None:
