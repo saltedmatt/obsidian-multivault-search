@@ -1,7 +1,7 @@
 # obsidian-multivault-search
 
 Command-line search for notes across multiple Obsidian vaults.
-Pure Python, standard library only, no dependencies (Python ≥ 3.9).
+Pure Python, standard library only, no dependencies (Python ≥ 3.11).
 
 The command is available under two names: `obsidian-multivault-search` and the
 short alias `obmvs`. Both do exactly the same; this README uses `obmvs`.
