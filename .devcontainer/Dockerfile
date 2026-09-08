@@ -7,8 +7,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 RUN mkdir -p /etc/claude-code
 COPY managed-settings.json /etc/claude-code/managed-settings.json
 
-# podman übernimmt beim ersten Mounten eines Named Volumes die Besitzrechte des darunterliegenden Image‑Verzeichnisses. 
-# Existiert /home/vscode/.claude im Image nicht, gehört das Volume Container‑root und vscode kann nicht schreiben.
+# On first mount of a named volume, podman takes over the ownership of the underlying image directory.
+# If /home/vscode/.claude does not exist in the image, the volume belongs to container root and vscode cannot write.
 RUN mkdir -p /home/vscode/.claude && chown vscode:vscode /home/vscode/.claude
 
 USER vscode
