@@ -10,6 +10,10 @@ build/
 
 .claude/settings.local.json
 
+# editor config stays personal; the VS Code settings the project does rely on
+# live in .devcontainer/devcontainer.json
+.vscode/
+
 # local working notes, not for publication
 make-github-able.md
 

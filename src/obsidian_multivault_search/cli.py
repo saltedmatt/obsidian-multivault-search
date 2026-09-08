@@ -134,9 +134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     roots = args.roots or [Path.home()]
-    vaults = find_vaults(
-        roots, max_depth=args.max_depth, follow_symlinks=args.follow
-    )
+    vaults = find_vaults(roots, max_depth=args.max_depth, follow_symlinks=args.follow)
 
     if args.list_vaults:
         for vault in sorted(vaults, key=lambda v: (v.name.casefold(), str(v))):

@@ -14,9 +14,7 @@ from ._meta import PROG
 
 # Directories that are never entered while searching (in addition to every
 # hidden directory, notably .obsidian, .trash and .git).
-SKIP_DIRS = frozenset(
-    {"node_modules", "__pycache__", "venv", ".venv", "site-packages"}
-)
+SKIP_DIRS = frozenset({"node_modules", "__pycache__", "venv", ".venv", "site-packages"})
 
 
 def _prunable(names: list[str], skip: set[str] | frozenset[str]) -> list[str]:
