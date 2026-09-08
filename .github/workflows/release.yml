@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+# Deliberately a different group than the one of the called CI workflow: if
+# caller and callee shared a group, one would wait for the other and the run
+# would never make progress. Cancelling is never right here - a version that
+# sits half-published on PyPI cannot be taken back.
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Tests, linting and build come from the CI, so that a release passes exactly
+  # the checks that every pull request passes too. The build job there uploads
+  # the artifacts that are published further below.
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  verify:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+
+      - name: check tag against package version
+        env:
+          # The release payload is the authoritative source for the tag;
+          # GITHUB_REF_NAME would only be derived from it.
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          uv run --no-project --python 3.13 --with packaging python - <<'PY'
+          import os
+          import pathlib
+
+          from packaging.utils import parse_wheel_filename
+          from packaging.version import InvalidVersion, Version
+
+
+          def fail(message: str) -> None:
+              # On stdout, so that GitHub picks up the annotation.
+              print(f"::error::{message}")
+              raise SystemExit(1)
+
+
+          wheels = sorted(pathlib.Path("dist").glob("*.whl"))
+          if len(wheels) != 1:
+              fail(f"expected exactly one wheel in dist/, found {len(wheels)}")
+
+          # The filename carries the version that hatchling took from _meta.py
+          # and normalised according to PEP 440.
+          _, wheel_version, _, _ = parse_wheel_filename(wheels[0].name)
+
+          raw_tag = os.environ["TAG_NAME"].removeprefix("v")
+          try:
+              tag_version = Version(raw_tag)
+          except InvalidVersion:
+              fail(f"tag {raw_tag!r} is not a valid PEP 440 version")
+
+          # Compare by version rather than by string: a tag like v1.0.0-rc1 and
+          # the wheel version 1.0.0rc1 mean the same thing.
+          print(f"Tag: {tag_version} / package: {wheel_version}")
+          if tag_version != wheel_version:
+              fail(f"tag {tag_version} does not match package version {wheel_version}")
+          PY
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/obsidian-multivault-search
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2

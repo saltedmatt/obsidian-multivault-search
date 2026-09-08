@@ -3,17 +3,23 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # During ongoing development a new push should supersede the old run.
+  # When this workflow is called from the release, the event is `release` -
+  # nothing may be cancelled there, or the run that builds the artifacts to be
+  # published dies in the middle of the release.
+  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -33,11 +39,22 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
       - run: uv build
-      - run: uvx twine check dist/*
+      # --strict fails the run even for a merely badly rendered README. On PyPI
+      # an uploaded version is immutable, so a broken project page can no
+      # longer be corrected.
+      - run: uvx twine check --strict dist/*
+      # The release downloads exactly these artifacts and publishes them,
+      # instead of building a second time itself.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
