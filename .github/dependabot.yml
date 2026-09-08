@@ -8,6 +8,7 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "ci"
+      include: "scope"
     groups:
       actions:
         patterns: ["*"]
@@ -17,8 +18,19 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Only uv.lock moves; the floors in pyproject.toml stay where they are, so
+    # updates never narrow what contributors are allowed to install. Nothing
+    # here carries an upper bound, so this cannot strand a security update.
+    versioning-strategy: "lockfile-only"
     commit-message:
-      prefix: "deps"
+      prefix: "build"
+      include: "scope"
     groups:
-      dev-dependencies:
-        dependency-type: "development"
+      # dependency-type is not supported for the uv ecosystem
+      # (dependabot/dependabot-core#13202) - every dependency is reported as
+      # production regardless of where it sits, so a "development" group would
+      # match nothing and each package would get its own pull request. The
+      # project has no runtime dependencies anyway; revisit the split once
+      # there are some and upstream classifies them.
+      all-dependencies:
+        patterns: ["*"]
