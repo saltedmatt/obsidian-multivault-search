@@ -16,6 +16,12 @@ services:
     volumes:
       - ..:/workspace:cached
       - claude-config:/home/vscode/.claude
+      # The named volume above covers the whole config directory, so the user's
+      # global instructions would otherwise never reach the container. Mounted
+      # read-only, and from the host path, so it stays the single source: no
+      # copy of it lives in this repo. Editors that save by replacing the file
+      # swap the inode; the container keeps the old one until it is restarted.
+      - ${HOME}/.claude/CLAUDE.md:/home/vscode/.claude/CLAUDE.md:ro
     depends_on: [proxy]
 
 networks:
