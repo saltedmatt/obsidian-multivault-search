@@ -32,9 +32,6 @@ uv tool install .          # installs both commands
 python -m obsidian_multivault_search TERM   # with src/ on PYTHONPATH
 ```
 
-Every variant installs the two alternative commands `obsidian-multivault-search` and
-`obmvs`.
-
 ## Project layout
 
 ```
@@ -70,16 +67,26 @@ obmvs -L                     # list the vaults that were found
 
 ## Output
 
-Fields separated by tabs, sorted by vault name and note name:
+One line per matching note, fields separated by tabs, sorted by vault name and
+note name:
 
 ```
 vault-name<TAB>note-name<TAB>context
 ```
 
-The output shows one match per line, unless the --context option is used.
-Markdown formatting is stripped; for links the display text is kept. Only the **first**
-match per note and search term is shown; with multiple terms the contexts are
-separated by ` | `.
+The context is a window of up to six **adjacent words** around the match: three
+per side, and whatever one side cannot use goes to the other one. A match at
+the beginning of its line therefore comes with six words behind it rather than
+three. `-C N` sets the number per side, so the window holds at most `2 × N`
+words; `-C 0` shows the match on its own.
+
+The window never leaves the note line the match was found on — the words behind
+a line break usually belong to another paragraph or heading and would only
+mislead.
+
+Markdown formatting is stripped; for links the display text is kept. Only the
+**first** match per note and search term is shown; with multiple terms the
+contexts are separated by ` | `.
 
 ## Options
 
@@ -87,7 +94,7 @@ separated by ` | `.
 |---|---|
 | `-n, --not TERM` | term that must **not** occur (repeatable) |
 | `-d, --dir PATH` | search area (repeatable, default: `$HOME`) |
-| `-C, --context N` | words before/after the match |
+| `-C, --context N` | adjacent words before/after the match, on its line (default: 3) |
 | `-s, --case-sensitive` | respect upper/lower case |
 | `-w, --word` | match whole words only |
 | `-e, --regex` | treat search terms as regular expressions |
