@@ -27,7 +27,17 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
+      # Ahead of the download: checkout empties the workspace before it writes
+      # the working tree. Explicitly the tag rather than the default branch, so
+      # that the changelog read below belongs to the version being published.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: dist
@@ -77,6 +87,53 @@ jobs:
               fail(f"tag {tag_version} does not match package version {wheel_version}")
           PY
 
+      # Cut out here rather than in the job that writes the release body: a
+      # missing changelog entry has to stop the run while PyPI can still be
+      # spared, and the section is then passed on as an artifact instead of
+      # being parsed a second time.
+      - name: cut the changelog section for the release notes
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          # The heading is written by hand, so it is matched against the tag as
+          # typed - not against the version normalised out of the wheel.
+          version = os.environ["TAG_NAME"].removeprefix("v")
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+          section = re.search(
+              # "## [0.1.1] - 2026-09-15" up to the next heading of that level,
+              # or up to the link definitions Keep a Changelog puts at the
+              # bottom of the file.
+              rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## |^\[[^\]]+\]: |\Z)",
+              changelog,
+              re.MULTILINE | re.DOTALL,
+          )
+          if section is None:
+              print(f"::error::CHANGELOG.md has no section for version {version}")
+              raise SystemExit(1)
+
+          notes = section.group(1).strip()
+          if not notes:
+              print(f"::error::the CHANGELOG.md section for {version} is empty")
+              raise SystemExit(1)
+
+          pathlib.Path("release-notes.md").write_text(f"{notes}\n", encoding="utf-8")
+          print(notes)
+          PY
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     needs: verify
     runs-on: ubuntu-latest
@@ -93,3 +150,57 @@ jobs:
           path: dist/
 
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+
+  # Behind the publish on purpose: the section was validated in `verify`, so
+  # the only thing left to fail here is the API call - and an empty release
+  # body can be filled in by hand afterwards, unlike a version that sits half
+  # published on PyPI.
+  notes:
+    needs: publish
+    # An empty body is the normal case, since the text comes from the
+    # changelog. Anything typed into the release by hand is left alone instead
+    # of being overwritten without a trace.
+    if: github.event.release.body == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: release-notes
+
+      - name: write the changelog section into the release body
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          # The release is addressed by id: unlike the tag, it stays valid even
+          # if the release is renamed between publishing and this step.
+          RELEASE_ID: ${{ github.event.release.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import urllib.request
+
+          body = pathlib.Path("release-notes.md").read_text(encoding="utf-8")
+
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}"
+              f"/releases/{os.environ['RELEASE_ID']}",
+              data=json.dumps({"body": body.strip()}).encode(),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+              method="PATCH",
+          )
+          # urlopen raises for anything outside 2xx, which is exactly the
+          # failure this job should report.
+          with urllib.request.urlopen(request) as response:
+              print(f"release body updated ({response.status})")
+          PY
