@@ -57,7 +57,11 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         type=int,
         default=DEFAULT_CONTEXT_WORDS,
         metavar="N",
-        help=f"words before/after the match (default: {DEFAULT_CONTEXT_WORDS})",
+        # Words, not lines - and the context never leaves the line the match
+        # was found on, so N words per side is what a full line offers, not
+        # what every match gets.
+        help="adjacent words before/after the match, on its line "
+        f"(default: {DEFAULT_CONTEXT_WORDS})",
     )
     parser.add_argument(
         "-s",

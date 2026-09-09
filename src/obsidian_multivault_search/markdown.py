@@ -34,9 +34,24 @@ _WHITESPACE = re.compile(r"\s+")
 _MARKER = re.compile("\x00(\\d+)\x00")
 
 
+def clean_markdown_lines(text: str) -> list[str]:
+    """Clean every line on its own and drop the ones that end up empty.
+
+    Every substitution below is anchored to a line or to single characters, so
+    cleaning line by line gives the same result as cleaning the whole note at
+    once. Keeping the lines apart is what lets the caller cut a context that
+    stops at the end of the line the match was found on.
+    """
+    return [cleaned for line in text.splitlines() if (cleaned := _clean_line(line))]
+
+
 def clean_markdown(text: str) -> str:
     """Strip markdown formatting characters and flatten the text into a
     single, normalised line."""
+    return " ".join(clean_markdown_lines(text))
+
+
+def _clean_line(text: str) -> str:
     escaped: list[str] = []
 
     def hide(match: re.Match[str]) -> str:

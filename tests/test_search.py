@@ -80,11 +80,18 @@ class TestContextFor:
     def test_more_words_than_available(self) -> None:
         assert one_context(SENTENCE, "target", words=99) == SENTENCE
 
-    def test_match_at_the_start(self) -> None:
-        assert one_context("TARGET a b c d", "target") == "TARGET a b c"
+    def test_match_at_the_start_spends_the_unused_share_on_the_other_side(
+        self,
+    ) -> None:
+        """Nothing before the match, so all six words come from behind it."""
+        assert one_context("TARGET a b c d e f g", "target") == "TARGET a b c d e f"
 
-    def test_match_at_the_end(self) -> None:
-        assert one_context("a b c d TARGET", "target") == "b c d TARGET"
+    def test_match_at_the_end_spends_the_unused_share_on_the_other_side(self) -> None:
+        assert one_context("a b c d e f g TARGET", "target") == "b c d e f g TARGET"
+
+    def test_the_hand_over_cannot_exceed_what_is_there(self) -> None:
+        """Four words in total, although the budget would allow six."""
+        assert one_context("a b TARGET c d", "target") == "a b TARGET c d"
 
     def test_match_is_widened_to_the_whole_word(self) -> None:
         text = "one prefixTARGETsuffix two"
@@ -123,7 +130,13 @@ class TestSearchNote:
 
     def test_match_returns_context(self, tmp_path: Path) -> None:
         path = self.note(tmp_path, "# Title\n\nsome **kubernetes** text here\n")
-        assert self.search(path, ["kubernetes"]) == "Title some kubernetes text here"
+        assert self.search(path, ["kubernetes"]) == "some kubernetes text here"
+
+    def test_context_stops_at_the_line_it_was_found_on(self, tmp_path: Path) -> None:
+        """The heading below belongs to another section; pulling its words in
+        would suggest a connection to the match that does not exist."""
+        path = self.note(tmp_path, "notes on backup\n\n## Unrelated\n\nOther topic\n")
+        assert self.search(path, ["backup"]) == "notes on backup"
 
     def test_miss_returns_none(self, tmp_path: Path) -> None:
         path = self.note(tmp_path, "nothing of interest\n")
@@ -134,10 +147,10 @@ class TestSearchNote:
         assert self.search(path, ["alpha", "beta"]) is None
 
     def test_contexts_of_several_terms_are_joined(self, tmp_path: Path) -> None:
-        path = self.note(tmp_path, "alpha here and beta there\n")
+        path = self.note(tmp_path, "alpha one two three four five six beta there\n")
         result = self.search(path, ["alpha", "beta"])
         assert result == TERM_SEP.join(
-            ["alpha here and beta", "alpha here and beta there"]
+            ["alpha one two three four five six", "two three four five six beta there"]
         )
 
     def test_any_term_is_enough_with_require_all_off(self, tmp_path: Path) -> None:

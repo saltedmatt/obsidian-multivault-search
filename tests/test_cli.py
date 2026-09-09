@@ -115,11 +115,24 @@ class TestSearch:
 
     def test_context_is_the_third_field(self, run) -> None:
         _, rows, _ = run("kubernetes")
-        assert fields(rows)[2] == ["inner", "deep", "kubernetes inside the inner"]
+        assert fields(rows)[2] == ["inner", "deep", "kubernetes inside the inner vault"]
 
     def test_context_width(self, run) -> None:
         _, rows, _ = run("kubernetes", "-C", "1")
-        assert fields(rows)[2][2] == "kubernetes inside"
+        assert fields(rows)[2][2] == "kubernetes inside the"
+
+    def test_context_default_applies_without_the_option(self, run) -> None:
+        """Three adjacent words per side by default, as documented in the
+        README - here widened towards the front, because only one word follows
+        the match on that line."""
+        _, rows, _ = run("helm")
+        assert fields(rows)[0][2] == "Old kubernetes notes about helm charts."
+
+    def test_context_does_not_reach_into_the_heading_above(self, run) -> None:
+        """deploy.md starts with "# Deploy notes"; the match sits in the
+        paragraph below it and the context stays there."""
+        _, rows, _ = run("kubernetes")
+        assert fields(rows)[0][2] == "We run kubernetes here."
 
     def test_no_match_exits_one(self, run) -> None:
         code, rows, _ = run("nonexistentterm")
