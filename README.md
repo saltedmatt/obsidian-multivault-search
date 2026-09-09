@@ -8,12 +8,21 @@ short alias `obmvs`. Both do exactly the same; this README uses `obmvs`.
 
 ## Installation
 
-> [!WARNING]
-> **Not on PyPI yet.** The package has not been published; a release to PyPI is
-> only planned. Commands such as `pipx install obsidian-multivault-search` will
-> therefore fail. Until then, install from a clone of this repository.
+Try the tool without installing it:
 
-From a clone of this repository:
+```bash
+uvx --from obsidian-multivault-search obmvs TERM
+```
+
+Installation with `pipx` or `uv tool`: 
+
+```bash
+pipx install obsidian-multivault-search
+# or
+uv tool install obsidian-multivault-search
+```
+
+Installation from a clone of this repository:
 
 ```bash
 git clone https://github.com/saltedmatt/obsidian-multivault-search
@@ -23,21 +32,7 @@ uv tool install .          # installs both commands
 python -m obsidian_multivault_search TERM   # with src/ on PYTHONPATH
 ```
 
-There are no dependencies, so plain `pip install .` into a virtual environment
-works just as well.
-
-Once the package is published on PyPI, the following will work — **these
-commands do not work yet**:
-
-```bash
-pipx install obsidian-multivault-search
-# or
-uv tool install obsidian-multivault-search
-# or, to try the tool without installing it:
-uvx --from obsidian-multivault-search obmvs TERM
-```
-
-Every variant installs the two commands `obsidian-multivault-search` and
+Every variant installs the two alternative commands `obsidian-multivault-search` and
 `obmvs`.
 
 ## Project layout
@@ -56,7 +51,7 @@ src/obsidian_multivault_search/
 ## Usage
 
 ```bash
-obmvs TERM [TERM ...]        # searches the whole home directory
+obmvs TERM [TERM ...]        # searches the whole home directory; AND semantics
 obmvs -d ~/w/vaults TERM     # searches only below that path
 obmvs -L                     # list the vaults that were found
 ```
@@ -75,16 +70,14 @@ obmvs -L                     # list the vaults that were found
 
 ## Output
 
-One line per matching note, fields separated by tabs, sorted by vault name and
-note name:
+Fields separated by tabs, sorted by vault name and note name:
 
 ```
 vault-name<TAB>note-name<TAB>context
 ```
 
-The context shows the match with up to three words before and after it.
-Markdown formatting (headings, `*`/`_`/`` ` ``, links, wikilinks, table rules,
-HTML tags …) is stripped; for links the display text is kept. Only the **first**
+The output shows one match per line, unless the --context option is used.
+Markdown formatting is stripped; for links the display text is kept. Only the **first**
 match per note and search term is shown; with multiple terms the contexts are
 separated by ` | `.
 
@@ -94,7 +87,7 @@ separated by ` | `.
 |---|---|
 | `-n, --not TERM` | term that must **not** occur (repeatable) |
 | `-d, --dir PATH` | search area (repeatable, default: `$HOME`) |
-| `-C, --context N` | words before/after the match (default: 3) |
+| `-C, --context N` | words before/after the match |
 | `-s, --case-sensitive` | respect upper/lower case |
 | `-w, --word` | match whole words only |
 | `-e, --regex` | treat search terms as regular expressions |
