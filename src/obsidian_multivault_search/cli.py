@@ -19,6 +19,81 @@ from .vaults import find_vaults, iter_notes
 DEFAULT_CONTEXT_WORDS = 3
 DEFAULT_FIELD_SEP = "\t"
 
+# Console mode flag and stream handle of the Windows API, needed to get a
+# classic console host to interpret escape sequences.
+_ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+_STD_OUTPUT_HANDLE = -11
+
+
+def use_utf8_output() -> None:
+    """Put stdout and stderr on UTF-8, whatever the locale would prescribe.
+
+    Notes are read as UTF-8, so every character in them can end up in the
+    output. A redirected stream, however, encodes in the locale's codepage -
+    cp1252 on a German Windows - which carries the accented letters but not
+    the arrow, the check mark or the emoji that sit in a note just as often.
+    Without this, `obmvs term > out.txt` ends in a UnicodeEncodeError over one
+    such character instead of writing the result. On a console Python already
+    encodes in UTF-8, so nothing changes there.
+
+    `backslashreplace` covers the way back: a file name that the file system
+    hands over as undecodable bytes stays printable as an escape instead of
+    ending the run.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (AttributeError, OSError, ValueError):
+            # Not a reconfigurable text stream - a caller may have replaced it
+            # with anything, and `pythonw` has no streams at all. Whatever it
+            # is, it stays as it is.
+            continue
+
+
+def _ansi_is_understood() -> bool:
+    """Whether escape sequences reach the terminal as escape sequences.
+
+    Outside Windows they always do. A Windows console interprets them only
+    once the mode is set: Windows Terminal and PowerShell 7 set it themselves,
+    the classic console host of `cmd.exe` does not and would spell the raw
+    sequences out into the output.
+    """
+    if os.name != "nt":
+        return True
+    try:
+        # Windows only, so the import cannot live at module level.
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(_STD_OUTPUT_HANDLE)
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False  # no console behind stdout, so nothing to switch on
+        if mode.value & _ENABLE_VIRTUAL_TERMINAL_PROCESSING:
+            return True
+        return bool(
+            kernel32.SetConsoleMode(
+                handle, mode.value | _ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            )
+        )
+    except (ImportError, AttributeError, OSError, ValueError):
+        # No ctypes in this build, no `windll` behind it, or the call refused:
+        # colour is a comfort, and none of this is worth a failed run.
+        return False
+
+
+def use_color(choice: str) -> bool:
+    """Whether matches are highlighted, for `--color auto|always|never`."""
+    if choice == "never":
+        return False
+    if choice == "auto" and not sys.stdout.isatty():
+        return False
+    # `always` is what one types to send colour through a pipe or into a file,
+    # where there is no console mode to be switched on in the first place. It
+    # keeps its promise even when the switch fails; `auto` stays plain rather
+    # than littering the output with sequences nobody will interpret.
+    return _ansi_is_understood() or choice == "always"
+
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -149,7 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{PROG}: no Obsidian vaults found", file=sys.stderr)
         return 1
 
-    color = args.color == "always" or (args.color == "auto" and sys.stdout.isatty())
+    color = use_color(args.color)
     pattern_opts = dict(
         regex=args.regex,
         whole_word=args.word,
@@ -198,8 +273,11 @@ def cli() -> int:
 
     The generated wrapper only does `sys.exit(cli())`, so the handling of an
     interrupted or truncated run has to live here rather than in the
-    `__main__` module.
+    `__main__` module. The same goes for the streams: owning them is the
+    program's business, not that of `main`, which stays callable from code
+    that has arranged its own output.
     """
+    use_utf8_output()
     try:
         return main()
     except KeyboardInterrupt:

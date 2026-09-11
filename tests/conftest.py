@@ -39,6 +39,23 @@ def write_note() -> WriteNote:
 
 
 @pytest.fixture
+def symlinks_available(tmp_path: Path) -> None:
+    """Skip the test unless this process may create directory symlinks.
+
+    On POSIX that is always the case. Windows grants the privilege only with
+    developer mode or elevation, so the check has to be the attempt itself
+    rather than the platform: where the privilege is there, the test runs and
+    covers the same behaviour as everywhere else.
+    """
+    probe = tmp_path / "symlink-probe"
+    try:
+        probe.symlink_to(tmp_path, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"creating symlinks is not permitted here: {exc}")
+    probe.unlink()
+
+
+@pytest.fixture
 def empty_area(tmp_path: Path) -> Path:
     """A search area that contains no vault at all."""
     area = tmp_path / "empty"

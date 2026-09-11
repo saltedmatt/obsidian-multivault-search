@@ -110,6 +110,28 @@ contexts are separated by ` | `.
 
 Exit codes: `0` = matches, `1` = no matches / no vaults, `2` = usage error.
 
+## Windows
+
+The tool runs on Windows the same way it does elsewhere, and the test suite
+covers both platforms. Three things follow the platform rather than an option:
+
+* **Paths** are printed with the separator of the platform, so `-p` yields
+  `archive\old` on Windows and `archive/old` everywhere else — in each case
+  what that platform's shell takes back.
+* **Output is UTF-8**, also when it is redirected into a file. The locale's
+  codepage would otherwise decide what may be printed: cp1252 carries the
+  accented letters and the euro sign, but an arrow, a check mark or an emoji
+  in a note would end the run with an encoding error instead of showing up.
+* **`--color auto`** switches the console into the mode that interprets
+  escape sequences and stays plain when that fails — the classic console host
+  of `cmd.exe` would spell them out into the output instead. Windows Terminal
+  and PowerShell 7 need none of this. `--color always` writes the sequences
+  regardless, which is what piping colour elsewhere is about.
+
+One difference remains: symlinked directories are entered only with
+`--follow`, while NTFS junctions are entered in any case, because Windows does
+not report them as links.
+
 ## Examples
 
 ```bash

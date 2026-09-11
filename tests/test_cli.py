@@ -10,6 +10,8 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 from __future__ import annotations
 
 import importlib
+import io
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -25,6 +27,22 @@ from obsidian_multivault_search.search import HIGHLIGHT, RESET
 cli_module = importlib.import_module("obsidian_multivault_search.cli")
 
 MakeVault = Callable[[Path, str], Path]
+
+
+class FakeStdout(io.StringIO):
+    """Stand-in for stdout; only `isatty` matters to the colour decision.
+
+    Replacing the whole stream rather than patching `isatty` on the real one
+    keeps the test working under `-s`, where `sys.stdout` is a C-level
+    `TextIOWrapper` whose attributes cannot be set.
+    """
+
+    def __init__(self, tty: bool) -> None:
+        super().__init__()
+        self._tty = tty
+
+    def isatty(self) -> bool:
+        return self._tty
 
 
 @pytest.fixture
@@ -197,8 +215,11 @@ class TestSearch:
         assert len(rows) == 3
 
     def test_relpath_shows_the_path_below_the_vault(self, run) -> None:
+        # The path is printed with the separator of the platform, so the
+        # expectation is spelled the same way rather than hard-coded to "/".
+        nested = str(Path("archive/old"))
         _, rows, _ = run("kubernetes", "-p")
-        assert [f[1] for f in fields(rows)] == ["archive/old", "deploy", "deep"]
+        assert [f[1] for f in fields(rows)] == [nested, "deploy", "deep"]
 
     def test_custom_separator(self, run) -> None:
         _, rows, _ = run("kubernetes", "-F", ";")
@@ -231,6 +252,98 @@ class TestColor:
     def test_auto_stays_plain_when_stdout_is_not_a_terminal(self, run) -> None:
         _, rows, _ = run("kubernetes", "--color", "auto")
         assert all(HIGHLIGHT not in row for row in rows)
+
+
+class TestColorDecision:
+    """`use_color` on its own, including the console mode Windows needs.
+
+    A classic Windows console prints escape sequences verbatim unless the mode
+    is switched on, which no other platform has to care about.
+    """
+
+    @pytest.fixture
+    def console(self, monkeypatch: pytest.MonkeyPatch):
+        def _console(*, tty: bool, ansi: bool) -> None:
+            monkeypatch.setattr(sys, "stdout", FakeStdout(tty))
+            monkeypatch.setattr(cli_module, "_ansi_is_understood", lambda: ansi)
+
+        return _console
+
+    def test_auto_needs_a_terminal(self, console) -> None:
+        console(tty=False, ansi=True)
+        assert cli_module.use_color("auto") is False
+
+    def test_auto_colours_on_a_terminal_that_understands_ansi(self, console) -> None:
+        console(tty=True, ansi=True)
+        assert cli_module.use_color("auto") is True
+
+    def test_auto_stays_plain_on_a_console_without_ansi(self, console) -> None:
+        console(tty=True, ansi=False)
+        assert cli_module.use_color("auto") is False
+
+    def test_always_colours_even_where_nothing_interprets_it(self, console) -> None:
+        """`--color always` is what one types to pipe colour somewhere else;
+        there is no console mode to switch on in that case."""
+        console(tty=False, ansi=False)
+        assert cli_module.use_color("always") is True
+
+    def test_never_stays_plain_on_the_friendliest_terminal(self, console) -> None:
+        console(tty=True, ansi=True)
+        assert cli_module.use_color("never") is False
+
+    def test_ansi_needs_no_probing_outside_windows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(os, "name", "posix")
+        assert cli_module._ansi_is_understood() is True
+
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="would probe the real console instead"
+    )
+    def test_a_failing_windows_probe_answers_false(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without the Windows API behind it the probe has to answer, not
+        raise - `--color always` still has to work on such a machine."""
+        monkeypatch.setattr(os, "name", "nt")
+        assert cli_module._ansi_is_understood() is False
+
+
+class TestOutputEncoding:
+    def test_output_is_utf8_even_when_the_locale_is_not(self, tree: Path) -> None:
+        """A redirected stream encodes in the locale's codepage. The note here
+        holds what cp1252 carries (an umlaut, a euro sign) next to what it does
+        not (an arrow, a check mark), which is the situation on a German
+        Windows. PYTHONIOENCODING brings that codepage to every platform, so
+        this test is not a Windows one.
+        """
+        note = tree / "alpha" / "invoice.md"
+        note.write_text("Angebot über 5 € bestätigt → ✓\n", encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "obsidian_multivault_search",
+                "-d",
+                str(tree),
+                "Angebot",
+            ],
+            capture_output=True,
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert "über 5 € bestätigt → ✓" in result.stdout.decode("utf-8")
+
+    def test_a_stream_that_cannot_be_reconfigured_is_left_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`main` stays callable from code that brought its own streams."""
+        monkeypatch.setattr(sys, "stdout", object())
+        monkeypatch.setattr(sys, "stderr", object())
+        cli_module.use_utf8_output()
 
 
 class TestSorting:

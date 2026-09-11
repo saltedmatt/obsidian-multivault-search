@@ -12,6 +12,24 @@ a second commit log.
 
 ## [Unreleased]
 
+### Added
+
+- The test suite runs on Windows in CI as well, so `Operating System ::
+  OS Independent` is now something the project checks rather than claims.
+- The README describes what follows the platform on Windows: path separators,
+  the encoding of the output and the console mode that colour needs.
+
+### Fixed
+
+- Redirecting the output no longer ends in a `UnicodeEncodeError` when the
+  locale cannot encode what a note contains. `obmvs term > out.txt` used to
+  fail over an arrow or a check mark on a German Windows, where a redirected
+  stream encodes in cp1252; the output is UTF-8 now, on every platform.
+- `--color auto` no longer writes escape sequences into a Windows console that
+  prints them verbatim: the mode that interprets them is switched on first,
+  and where that is refused the output stays plain. `--color always` keeps
+  writing them, for piping colour on to something else.
+
 ## [0.1.1] - 2026-09-09
 
 ### Changed

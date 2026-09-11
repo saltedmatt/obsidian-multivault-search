@@ -47,7 +47,10 @@ class TestFindVaults:
     def test_paths_are_expanded_and_resolved(
         self, tree: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # `~` is read from HOME on POSIX and from USERPROFILE on Windows;
+        # setting both keeps the test on the same footing everywhere.
         monkeypatch.setenv("HOME", str(tree))
+        monkeypatch.setenv("USERPROFILE", str(tree))
         assert names(find_vaults(["~"])) == ["alpha", "beta", "inner"]
 
     @pytest.mark.parametrize(
@@ -82,7 +85,7 @@ class TestFindVaults:
         assert "not a directory" in capsys.readouterr().err
 
     def test_symlinks_are_only_followed_on_request(
-        self, tmp_path: Path, make_vault: MakeVault
+        self, tmp_path: Path, make_vault: MakeVault, symlinks_available: None
     ) -> None:
         target = tmp_path / "outside"
         make_vault(target, "linked")

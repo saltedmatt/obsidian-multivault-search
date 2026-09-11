@@ -18,12 +18,21 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14"]
+        # What differs on Windows are path separators, `~` expansion and the
+        # privileges a symlink needs - none of that varies by Python version,
+        # so the two ends of the supported range cover it.
+        include:
+          - os: windows-latest
+            python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -33,8 +42,14 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked --all-extras
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+      # Linting judges the files in the repository, which are the same
+      # everywhere; running it once per platform would only duplicate it - and
+      # a Windows checkout carries CRLF line endings the formatter would have
+      # to be taught about first.
+      - if: runner.os == 'Linux'
+        run: uv run ruff check .
+      - if: runner.os == 'Linux'
+        run: uv run ruff format --check .
       - run: uv run pytest
 
   build:
