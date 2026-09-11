@@ -14,6 +14,12 @@ a second commit log.
 
 ### Added
 
+- Without `-d`, the search now covers every vault Obsidian itself has on file
+  in addition to the home directory. Vaults outside the home directory used to
+  go unnoticed - on Windows that is the usual case, where a vault sits on
+  `D:\` or on a network drive rather than under `C:\Users\<name>`. Obsidian
+  records each vault it has ever opened, so they are found without walking a
+  whole drive for them. `-d` and `-L` work as before.
 - The test suite runs on Windows in CI as well, so `Operating System ::
   OS Independent` is now something the project checks rather than claims.
 - The README describes what follows the platform on Windows: path separators,

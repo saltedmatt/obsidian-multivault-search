@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ._meta import PROG, __version__
 from .search import build_patterns, search_note
-from .vaults import find_vaults, iter_notes
+from .vaults import default_roots, find_vaults, iter_notes
 
 DEFAULT_CONTEXT_WORDS = 3
 DEFAULT_FIELD_SEP = "\t"
@@ -124,7 +124,8 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         dest="roots",
         action="append",
         metavar="PATH",
-        help="search area (repeatable, default: home directory)",
+        help="search area (repeatable, default: home directory "
+        "plus every vault known to Obsidian)",
     )
     parser.add_argument(
         "-C",
@@ -212,7 +213,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{PROG}: --context must not be negative", file=sys.stderr)
         return 2
 
-    roots = args.roots or [Path.home()]
+    roots = args.roots or default_roots()
     vaults = find_vaults(roots, max_depth=args.max_depth, follow_symlinks=args.follow)
 
     if args.list_vaults:

@@ -48,11 +48,17 @@ src/obsidian_multivault_search/
 ## Usage
 
 ```bash
-obmvs TERM [TERM ...]        # searches the whole home directory; AND semantics
+obmvs TERM [TERM ...]        # searches the default area; AND semantics
 obmvs -d ~/w/vaults TERM     # searches only below that path
 obmvs -L                     # list the vaults that were found
 ```
 
+* **Search area** without `-d`: the home directory, plus every vault Obsidian
+  itself has on file. Obsidian records each vault it has ever opened in
+  `obsidian.json`; reading that list is what finds a vault on another drive
+  without walking that drive — `D:\Vaults` on Windows, say. Vaults that have
+  never been opened in Obsidian are found the way they always were, by walking
+  the home directory. `-L` shows what this comes down to on your machine.
 * **Vault** = a directory containing an `.obsidian` subfolder; the vault name is
   the name of that directory. Only such directories are searched. If a vault
   lies inside another vault, its notes belong to the inner (nearest) vault.
@@ -93,7 +99,7 @@ contexts are separated by ` | `.
 | Option | Meaning |
 |---|---|
 | `-n, --not TERM` | term that must **not** occur (repeatable) |
-| `-d, --dir PATH` | search area (repeatable, default: `$HOME`) |
+| `-d, --dir PATH` | search area (repeatable, default: home directory plus every vault known to Obsidian) |
 | `-C, --context N` | adjacent words before/after the match, on its line (default: 3) |
 | `-s, --case-sensitive` | respect upper/lower case |
 | `-w, --word` | match whole words only |
@@ -113,8 +119,14 @@ Exit codes: `0` = matches, `1` = no matches / no vaults, `2` = usage error.
 ## Windows
 
 The tool runs on Windows the same way it does elsewhere, and the test suite
-covers both platforms. Three things follow the platform rather than an option:
+covers both platforms. Four things follow the platform rather than an option:
 
+* **The default search area** matters more here than elsewhere. A vault on
+  `D:\` or on a network drive lies outside `C:\Users\<name>`, so walking the
+  home directory alone would never see it; Obsidian's own vault list, read
+  from `%APPDATA%\obsidian\obsidian.json`, closes that gap. A vault that
+  Obsidian has never opened and that lies outside the home directory still
+  needs `-d D:\Vaults`.
 * **Paths** are printed with the separator of the platform, so `-p` yields
   `archive\old` on Windows and `archive/old` everywhere else — in each case
   what that platform's shell takes back.

@@ -5,13 +5,18 @@ SPDX-License-Identifier: Apache-2.0 OR MIT
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from obsidian_multivault_search import vaults as vaults_module
+
 MakeVault = Callable[[Path, str], Path]
 WriteNote = Callable[[Path, str, str], Path]
+WriteConfig = Callable[[Any], Path]
 
 
 def _make_vault(parent: Path, name: str) -> Path:
@@ -53,6 +58,40 @@ def symlinks_available(tmp_path: Path) -> None:
     except (OSError, NotImplementedError) as exc:
         pytest.skip(f"creating symlinks is not permitted here: {exc}")
     probe.unlink()
+
+
+@pytest.fixture
+def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point every variable a home or config directory is derived from here.
+
+    Windows reads `USERPROFILE` and `APPDATA`, POSIX reads `HOME`, Linux also
+    `XDG_CONFIG_HOME`. Setting them all keeps the tests on one footing, so
+    that the platform the suite happens to run on does not decide what it
+    covers.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    for name in ("HOME", "USERPROFILE", "APPDATA", "XDG_CONFIG_HOME"):
+        monkeypatch.setenv(name, str(home))
+    return home
+
+
+@pytest.fixture
+def write_config(fake_home: Path) -> WriteConfig:
+    """Write Obsidian's vault list to the place it is read from here.
+
+    Which place that is differs per platform, so the location comes from the
+    code under test rather than being spelled out a second time.
+    """
+
+    def write(data: Any) -> Path:
+        config = vaults_module._config_files()[0]
+        config.parent.mkdir(parents=True, exist_ok=True)
+        text = data if isinstance(data, str) else json.dumps(data)
+        config.write_text(text, encoding="utf-8")
+        return config
+
+    return write
 
 
 @pytest.fixture

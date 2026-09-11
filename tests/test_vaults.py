@@ -7,13 +7,31 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from obsidian_multivault_search.vaults import find_vaults, iter_notes
+from obsidian_multivault_search.vaults import (
+    default_roots,
+    find_vaults,
+    iter_notes,
+    registered_vaults,
+)
 
 MakeVault = Callable[[Path, str], Path]
 WriteNote = Callable[[Path, str, str], Path]
+WriteConfig = Callable[[Any], Path]
+
+
+def config_for(*vaults: Path) -> dict[str, Any]:
+    """Obsidian's config as it looks with these vaults on file."""
+    return {
+        "vaults": {
+            f"{i:016x}": {"path": str(vault), "ts": 1700000000000 + i}
+            for i, vault in enumerate(vaults)
+        },
+        "frame": {"width": 1200},
+    }
 
 
 def names(paths: Iterable[Path]) -> list[str]:
@@ -95,6 +113,94 @@ class TestFindVaults:
 
         assert find_vaults([root]) == []
         assert names(find_vaults([root], follow_symlinks=True)) == ["linked"]
+
+
+class TestRegisteredVaults:
+    def test_reads_the_vault_paths_obsidian_has_on_file(
+        self, tmp_path: Path, make_vault: MakeVault, write_config: WriteConfig
+    ) -> None:
+        """The point of the whole exercise: a vault outside the home tree."""
+        elsewhere = make_vault(tmp_path / "other-drive", "work")
+        write_config(config_for(elsewhere))
+        assert registered_vaults() == [elsewhere]
+
+    def test_without_a_config_nothing_is_registered(self, fake_home: Path) -> None:
+        assert registered_vaults() == []
+
+    def test_vaults_that_no_longer_exist_are_dropped(
+        self, tmp_path: Path, make_vault: MakeVault, write_config: WriteConfig
+    ) -> None:
+        alive = make_vault(tmp_path / "other-drive", "work")
+        write_config(config_for(alive, tmp_path / "other-drive" / "deleted"))
+        assert registered_vaults() == [alive]
+
+    def test_the_same_vault_is_listed_once(
+        self, tmp_path: Path, make_vault: MakeVault, write_config: WriteConfig
+    ) -> None:
+        vault = make_vault(tmp_path / "other-drive", "work")
+        write_config(config_for(vault, vault))
+        assert registered_vaults() == [vault]
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            "{ not json at all",
+            [],
+            {},
+            {"vaults": []},
+            {"vaults": {"a": "not an object"}},
+            {"vaults": {"a": {"ts": 1}}},
+            {"vaults": {"a": {"path": ""}}},
+            {"vaults": {"a": {"path": 17}}},
+        ],
+        ids=[
+            "broken-json",
+            "not-an-object",
+            "no-vaults-key",
+            "vaults-not-an-object",
+            "entry-not-an-object",
+            "entry-without-path",
+            "empty-path",
+            "path-not-a-string",
+        ],
+    )
+    def test_an_unexpected_config_is_passed_over_quietly(
+        self,
+        data: Any,
+        write_config: WriteConfig,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        write_config(data)
+        assert registered_vaults() == []
+        assert capsys.readouterr() == ("", "")
+
+
+class TestDefaultRoots:
+    def test_home_is_searched_as_before(self, fake_home: Path) -> None:
+        assert default_roots() == [fake_home]
+
+    def test_registered_vaults_are_added_to_the_home_directory(
+        self, tmp_path: Path, make_vault: MakeVault, write_config: WriteConfig
+    ) -> None:
+        elsewhere = make_vault(tmp_path / "other-drive", "work")
+        write_config(config_for(elsewhere))
+        assert set(default_roots()) == {tmp_path / "home", elsewhere}
+
+    def test_a_vault_inside_the_home_directory_adds_no_second_root(
+        self, fake_home: Path, make_vault: MakeVault, write_config: WriteConfig
+    ) -> None:
+        """Walking the home tree already covers it."""
+        write_config(config_for(make_vault(fake_home / "notes", "private")))
+        assert default_roots() == [fake_home]
+
+    def test_the_default_roots_lead_to_the_vaults(
+        self, tmp_path: Path, make_vault: MakeVault, write_config: WriteConfig
+    ) -> None:
+        outside = make_vault(tmp_path / "other-drive", "work")
+        inside = make_vault(tmp_path / "home", "private")
+        write_config(config_for(outside))
+        assert names(find_vaults(default_roots())) == ["private", "work"]
+        assert set(find_vaults(default_roots())) == {outside, inside}
 
 
 class TestIterNotes:
