@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Runs the same Ruff checks as .github/workflows/ci.yml, but only on the Python
+# files that are actually staged, so unrelated work in progress cannot block a
+# commit. Bypass with `git commit --no-verify`.
+set -euo pipefail
+
+mapfile -d '' -t staged < <(
+    git diff --cached --name-only --diff-filter=ACMR -z -- '*.py'
+)
+[ ${#staged[@]} -eq 0 ] && exit 0
+
+status=0
+
+if ! uv run --quiet ruff format --check -- "${staged[@]}"; then
+    echo
+    echo "pre-commit: run 'uv run ruff format' and stage the result."
+    status=1
+fi
+
+if ! uv run --quiet ruff check -- "${staged[@]}"; then
+    echo
+    echo "pre-commit: fix the lint findings above (some accept 'ruff check --fix')."
+    status=1
+fi
+
+exit $status

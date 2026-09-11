@@ -151,6 +151,27 @@ obmvs -w -C 6 backup | column -t -s $'\t'
 obmvs -p invoice | cut -f1,2
 ```
 
+## Development
+
+The repository ships its Git hooks in [`.githooks/`](.githooks). Git does not
+pick those up on its own, so a fresh clone points it there once:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+* **pre-commit** runs `ruff format --check` and `ruff check` on the staged
+  Python files, so work in progress elsewhere cannot block a commit.
+* **pre-push** runs the whole CI gate over the repository — lockfile,
+  formatting, lint, the test suite, and a build checked with
+  `twine check --strict`. When a `v*` tag is among the pushed refs, it also
+  compares the tag against `__version__` and requires a filled-in
+  `CHANGELOG.md` section for it, because the release workflow publishes to
+  PyPI, where a version cannot be taken back.
+
+Both are bypassed with `--no-verify`. What the hooks cannot cover stays with
+CI: the test suite across Python 3.11–3.14 and on Windows.
+
 ## License
 
 Licensed under either of

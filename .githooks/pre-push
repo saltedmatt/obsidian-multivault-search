@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Runs the checks of .github/workflows/ci.yml over the whole repository before
+# anything leaves the machine, and - when a version tag is being pushed - the
+# two checks from .github/workflows/release.yml that guard a publication which
+# cannot be taken back. Bypass with `git push --no-verify`.
+set -euo pipefail
+
+# Git reports a deleted ref as an all-zero object id; its width follows the
+# hash algorithm of the repository, so it is asked for rather than assumed.
+zero=$(git hash-object --stdin </dev/null | tr '[:alnum:]' '0')
+
+pushing=0
+tags=()
+while read -r local_ref local_oid _remote_ref _remote_oid; do
+    # A deletion pushes no content, so there is nothing to check for it.
+    [ "$local_oid" = "$zero" ] && continue
+    pushing=1
+    case "$local_ref" in
+        refs/tags/v*) tags+=("${local_ref#refs/tags/}") ;;
+    esac
+done
+# Nothing but deletions, or an up-to-date push Git resolved to no refs at all.
+[ "$pushing" -eq 0 ] && exit 0
+
+status=0
+
+fail() {
+    echo
+    echo "pre-push: $1"
+    status=1
+}
+
+# CI installs with `uv sync --locked`, which refuses a lockfile that no longer
+# matches pyproject.toml - a mismatch fails every job before it starts.
+uv lock --check >/dev/null 2>&1 ||
+    fail "uv.lock is out of date; run 'uv lock' and commit the result."
+
+uv run --quiet ruff format --check . ||
+    fail "run 'uv run ruff format' and commit the result."
+
+uv run --quiet ruff check . ||
+    fail "fix the lint findings above (some accept 'ruff check --fix')."
+
+uv run --quiet pytest -q ||
+    fail "the test suite fails."
+
+# Built into a temporary directory: dist/ holds the artifacts of the last
+# release and is not there to be overwritten by a check. --strict fails on a
+# merely badly rendered README, which on PyPI could not be corrected
+# afterwards, because an uploaded version is immutable.
+build=$(mktemp -d)
+trap 'rm -rf "$build"' EXIT
+if uv build --quiet --out-dir "$build" 2>&1; then
+    uvx --quiet twine check --strict "$build"/* ||
+        fail "the package metadata would be rejected by PyPI."
+else
+    fail "the package does not build."
+fi
+
+# Everything below only concerns a version tag, and it reads the tagged commit
+# rather than the working tree - the tag may well point at an older commit.
+for tag in "${tags[@]+"${tags[@]}"}"; do
+    version=${tag#v}
+
+    declared=$(git show "$tag:src/obsidian_multivault_search/_meta.py" |
+        sed -n 's/^__version__ = "\(.*\)"$/\1/p')
+    [ "$declared" = "$version" ] ||
+        fail "tag $tag carries __version__ $declared in _meta.py."
+
+    # The release workflow cuts this section into the body of the GitHub
+    # release and stops the run if it is missing - after the tag has been
+    # pushed and a release created from it.
+    git show "$tag:CHANGELOG.md" | awk -v version="$version" '
+        index($0, "## [" version "]") == 1 { inside = 1; next }
+        /^## / { inside = 0 }
+        /^\[[^]]+\]: / { inside = 0 }
+        inside && NF { found = 1 }
+        END { exit found ? 0 : 1 }
+    ' || fail "CHANGELOG.md has no filled-in section for $version."
+done
+
+exit $status

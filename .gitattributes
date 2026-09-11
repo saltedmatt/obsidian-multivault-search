@@ -2,3 +2,8 @@
 # keep it out of the language statistics
 uv.lock linguist-generated=true
 uv.lock -diff
+
+# the hooks are bash scripts that Git Bash executes on Windows too - a CRLF
+# checkout would leave a stray carriage return on the shebang line and the
+# hook would not run at all
+.githooks/* text eol=lf
